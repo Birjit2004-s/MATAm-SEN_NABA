@@ -21,8 +21,12 @@ jobs:
         with:
           gradle-version: '8.2'
 
-      - name: Point Gradle to pre-installed Android SDK
-        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+      - name: Configure Android SDK
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          SDKMANAGER=$(find $ANDROID_HOME -name sdkmanager -type f | head -1)
+          yes | $SDKMANAGER --licenses || true
+          $SDKMANAGER "platforms;android-34" "build-tools;34.0.0"
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
