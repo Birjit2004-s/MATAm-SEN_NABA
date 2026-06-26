@@ -181,7 +181,8 @@ public class MainActivity extends Activity {
                 GoogleSignInAccount acct = task.getResult(ApiException.class);
                 notifySignedIn(acct);
             } catch (ApiException e) {
-                runJs("window._onGoogleSignIn && window._onGoogleSignIn(null)");
+                int code = e.getStatusCode();
+                runJs("window._onGoogleSignInError && window._onGoogleSignInError(" + code + ")");
             }
         }
     }

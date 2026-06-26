@@ -865,6 +865,24 @@ $('splashSignInBtn').addEventListener('click', () => {
 
 $('splashSkipBtn').addEventListener('click', hideSplash);
 
+// Error codes from Google Sign-In
+const SIGN_IN_ERRORS = {
+  10:    'App not registered in Firebase (code 10) — SHA-1 fingerprint mismatch.',
+  7:     'Network error (code 7) — check your internet connection.',
+  12500: 'Google Play Services error (code 12500).',
+  12501: 'Sign-in cancelled.',
+};
+
+window._onGoogleSignInError = function(code) {
+  const msg = SIGN_IN_ERRORS[code] || 'Sign-in failed (code ' + code + ').';
+  $('splashLoading').style.display = 'none';
+  $('splashActions').style.display = '';
+  const errEl = document.createElement('div');
+  errEl.style.cssText = 'color:#cf5757;font-size:13px;margin-bottom:14px;padding:10px 12px;background:#faecec;border-radius:10px;line-height:1.5';
+  errEl.textContent = '⚠ ' + msg;
+  $('splashActions').insertBefore(errEl, $('splashActions').firstChild);
+};
+
 // Show sign-in buttons after 3s if auto sign-in hasn't resolved
 setTimeout(() => { if (!_splashDone) showSplashActions(); }, 3000);
 
