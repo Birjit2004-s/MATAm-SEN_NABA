@@ -403,41 +403,39 @@ $('remText').addEventListener('keydown', e => { if (e.key === 'Enter') addRem();
 function addRem() {
   const t = $('remText').value.trim();
   if (!t) return;
-  reminders.push({id: uid('r_'), text: t, when: $('remWhen').value || '', done: false});
+  const when = $('remWhen').value || '';
+  reminders.push({id: uid('r_'), text: t, when, done: false});
   saveRem(); $('remText').value = ''; $('remWhen').value = ''; renderReminders();
+  // Auto-request notification permission when a timed reminder is added
+  if (when) requestNotifPermission();
 }
 
 // ===== NOTIFICATIONS =====
-function updateNotifBtn() {
-  const btn = $('notifBtn');
-  if (!('Notification' in window)) { btn.style.display = 'none'; return; }
-  if (Notification.permission === 'granted') {
-    btn.classList.add('granted'); btn.classList.remove('denied');
-    btn.title = 'Notifications enabled';
-  } else if (Notification.permission === 'denied') {
-    btn.classList.add('denied'); btn.classList.remove('granted');
-    btn.title = 'Notifications blocked — allow them in browser/device settings';
-  } else {
-    btn.classList.remove('granted', 'denied');
-    btn.title = 'Tap to enable notifications';
+function notifSupported() { return 'Notification' in window; }
+
+function updateNotifPrompt() {
+  if (!notifSupported() || Notification.permission !== 'default') {
+    $('notifPrompt').style.display = 'none';
+    return;
   }
+  $('notifPrompt').style.display = '';
 }
 
-$('notifBtn').addEventListener('click', () => {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'denied') return;
-  Notification.requestPermission().then(updateNotifBtn);
-});
+function requestNotifPermission() {
+  if (!notifSupported() || Notification.permission !== 'default') return;
+  Notification.requestPermission().then(updateNotifPrompt);
+}
 
-function fireNotif(title, body) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try {
-    new Notification(title, { body, icon: '' });
-  } catch(e) {}
+$('notifPromptBtn').addEventListener('click', requestNotifPermission);
+
+function fireNotif(title, body, when) {
+  if (!notifSupported() || Notification.permission !== 'granted') return;
+  const fullBody = when ? body + '\n📅 ' + fmtWhen(when) : body;
+  try { new Notification(title, { body: fullBody }); } catch(e) {}
 }
 
 function checkReminderNotifs() {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!notifSupported() || Notification.permission !== 'granted') return;
   const now = Date.now();
   const fired = LS.get('msn_notif_fired', {});
   let changed = false;
@@ -450,32 +448,29 @@ function checkReminderNotifs() {
     const warn5Key = r.id + '_w5';
     const warn5At = due - 5 * 60 * 1000;
     if (!fired[warn5Key] && now >= warn5At && now < warn5At + 60000) {
-      fireNotif('Reminder in 5 minutes', r.text);
+      fireNotif('Reminder in 5 minutes — MATAM SEN-NABA', r.text, r.when);
       fired[warn5Key] = true; changed = true;
     }
 
-    // Due-time alert (1-minute window to catch it even if tab was inactive)
+    // Due-time alert (1-minute window)
     const dueKey = r.id + '_due';
     if (!fired[dueKey] && now >= due && now < due + 60000) {
-      fireNotif('⏰ Reminder due now', r.text);
+      fireNotif('⏰ Reminder due now — MATAM SEN-NABA', r.text, r.when);
       fired[dueKey] = true; changed = true;
     }
   });
 
-  // Clean up keys for reminders that are done or deleted
+  // Remove fired entries for deleted/done reminders
   const activeIds = new Set(reminders.map(r => r.id));
   Object.keys(fired).forEach(k => {
-    const id = k.replace(/_w5$|_due$/, '');
-    if (!activeIds.has(id)) { delete fired[k]; changed = true; }
+    if (!activeIds.has(k.replace(/_w5$|_due$/, ''))) { delete fired[k]; changed = true; }
   });
 
   if (changed) LS.set('msn_notif_fired', fired);
 }
 
-// Check on load and then every 60 seconds
 checkReminderNotifs();
 setInterval(checkReminderNotifs, 60000);
-updateNotifBtn();
 
 // ===== WEATHER =====
 const WMO = {
@@ -523,8 +518,64 @@ async function setCity(name) {
   }
 }
 
-$('cityGo').addEventListener('click', () => { const v = $('cityInput').value.trim(); if (v) { setCity(v); $('cityInput').value = ''; } });
-$('cityInput').addEventListener('keydown', e => { if (e.key === 'Enter') { const v = e.target.value.trim(); if (v) { setCity(v); e.target.value = ''; } } });
+// ===== CITY AUTOCOMPLETE =====
+let suggestTimer = null;
+
+function hideSuggestions() {
+  $('citySuggestions').style.display = 'none';
+  $('citySuggestions').innerHTML = '';
+}
+
+function showSuggestions(results) {
+  const list = $('citySuggestions');
+  list.innerHTML = '';
+  results.forEach(r => {
+    const label = [r.name, r.admin1, r.country_code].filter(Boolean).join(', ');
+    const fullLabel = [r.name, r.admin1, r.country].filter(Boolean).join(', ');
+    const item = document.createElement('div');
+    item.className = 'city-suggestion';
+    item.innerHTML = `<div class="city-sug-name">${r.name}</div>` +
+      `<div class="city-sug-detail">${[r.admin1, r.country].filter(Boolean).join(', ')}</div>`;
+    item.addEventListener('mousedown', e => {
+      e.preventDefault(); // prevent input blur before click fires
+      $('cityInput').value = '';
+      hideSuggestions();
+      config.city = { name: fullLabel, lat: r.latitude, lon: r.longitude };
+      saveConfig();
+      fetchWeather(r.latitude, r.longitude, fullLabel);
+    });
+    list.appendChild(item);
+  });
+  list.style.display = '';
+}
+
+async function fetchSuggestions(name) {
+  try {
+    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=6&language=en&format=json`);
+    const data = await res.json();
+    if (!data.results || !data.results.length) { hideSuggestions(); return; }
+    showSuggestions(data.results);
+  } catch(e) { hideSuggestions(); }
+}
+
+$('cityInput').addEventListener('input', e => {
+  clearTimeout(suggestTimer);
+  const v = e.target.value.trim();
+  if (v.length < 2) { hideSuggestions(); return; }
+  suggestTimer = setTimeout(() => fetchSuggestions(v), 300);
+});
+
+$('cityInput').addEventListener('blur', () => setTimeout(hideSuggestions, 150));
+
+$('cityGo').addEventListener('click', () => {
+  const v = $('cityInput').value.trim();
+  hideSuggestions();
+  if (v) { setCity(v); $('cityInput').value = ''; }
+});
+$('cityInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { const v = e.target.value.trim(); hideSuggestions(); if (v) { setCity(v); e.target.value = ''; } }
+  if (e.key === 'Escape') hideSuggestions();
+});
 $('geoBtn').addEventListener('click', () => {
   if (!navigator.geolocation) { $('wCond').textContent = 'Location not supported on this device.'; return; }
   $('wCond').textContent = 'Locating…';
@@ -658,116 +709,13 @@ $('calNext').addEventListener('click', () => {
   renderCalendar();
 });
 
-// ===== EXPORT CSV =====
-function downloadCSV(filename, rows) {
-  const csv = rows.map(r =>
-    r.map(v => `"${String(v === null || v === undefined ? '' : v).replace(/"/g, '""')}"`).join(',')
-  ).join('\n');
-  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportAllCSV() {
-  const exportDate = new Date().toLocaleDateString(undefined, {weekday:'long', year:'numeric', month:'long', day:'numeric'});
-  const rows = [];
-
-  // ── Header ──
-  rows.push(['MATAM SEN-NABA — Full Data Export']);
-  rows.push(['Exported:', exportDate]);
-  rows.push([]);
-
-  // ── Study / Work ──
-  rows.push(['=== STUDY / WORK ===']);
-  rows.push(['Date', 'Topic', 'Minutes']);
-  const studyRows = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (!k || !k.startsWith('msn_day_')) continue;
-    const date = k.replace('msn_day_', '');
-    let d; try { d = JSON.parse(localStorage.getItem(k)); } catch(e) { continue; }
-    if (!d || !Array.isArray(d.study)) continue;
-    d.study
-      .filter(r => (r.topic || '').trim() || (parseInt(r.minutes) || 0) > 0)
-      .forEach(r => studyRows.push([date, r.topic || '', parseInt(r.minutes) || 0]));
-  }
-  studyRows.sort((a, b) => a[0] < b[0] ? -1 : 1);
-  studyRows.forEach(r => rows.push(r));
-  if (studyRows.length === 0) rows.push(['No study data recorded yet.']);
-  rows.push([]);
-
-  // ── Daily Habits ──
-  rows.push(['=== DAILY HABITS ===']);
-  rows.push(['Date', 'Habit', 'Completed']);
-  const habitRows = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (!k || !k.startsWith('msn_day_')) continue;
-    const date = k.replace('msn_day_', '');
-    let d; try { d = JSON.parse(localStorage.getItem(k)); } catch(e) { continue; }
-    config.habits.forEach(h => {
-      habitRows.push([date, h.name, d && d.habits && d.habits[h.id] ? 'Yes' : 'No']);
-    });
-  }
-  habitRows.sort((a, b) => a[0] < b[0] ? -1 : 1);
-  habitRows.forEach(r => rows.push(r));
-  if (habitRows.length === 0) rows.push(['No habit data recorded yet.']);
-  rows.push([]);
-
-  // ── Reminders ──
-  rows.push(['=== REMINDERS ===']);
-  rows.push(['Text', 'Due Date', 'Completed']);
-  if (reminders.length > 0) {
-    reminders.forEach(r => rows.push([r.text, r.when || '', r.done ? 'Yes' : 'No']));
-  } else {
-    rows.push(['No reminders recorded yet.']);
-  }
-  rows.push([]);
-
-  // ── Dashboard Summary ──
-  const agg = aggregate('all');
-  rows.push(['=== DASHBOARD SUMMARY ===']);
-  rows.push([]);
-
-  rows.push(['OVERVIEW', '']);
-  rows.push(['Total Study Time', hm(agg.totalMins)]);
-  rows.push(['Total Minutes Studied', agg.totalMins]);
-  rows.push(['Days with Study Data', agg.days]);
-  rows.push(['Best Single Day', hm(agg.best)]);
-  rows.push(['Active Reminders', reminders.filter(r => !r.done).length]);
-  rows.push(['Completed Reminders', reminders.filter(r => r.done).length]);
-  rows.push(['Total Habits', config.habits.length]);
-  rows.push([]);
-
-  rows.push(['TOP TOPICS BY TIME', '', '', '']);
-  rows.push(['Rank', 'Topic', 'Total Time', 'Total Minutes']);
-  if (agg.topics.length > 0) {
-    agg.topics.forEach((t, i) => rows.push([i + 1, t.name, hm(t.mins), t.mins]));
-  } else {
-    rows.push(['No topics recorded yet.']);
-  }
-  rows.push([]);
-
-  rows.push(['HABIT STREAKS', '']);
-  rows.push(['Habit', 'Current Streak']);
-  if (config.habits.length > 0) {
-    config.habits.forEach(h => rows.push([h.name, streak(h.id) + ' day(s)']));
-  } else {
-    rows.push(['No habits configured.']);
-  }
-
-  downloadCSV('matam-sennaba-export.csv', rows);
-}
-
-$('exportAll').addEventListener('click', exportAllCSV);
 
 // ===== INIT =====
 updateDayNav();
 renderStudy();
 renderHabits();
 renderReminders();
+updateNotifPrompt();
 initCharts();
 renderDashboard();
 renderCalendar();

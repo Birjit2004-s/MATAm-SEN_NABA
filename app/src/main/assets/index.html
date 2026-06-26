@@ -103,7 +103,10 @@
       </div>
     </div>
     <div class="w-controls">
-      <input type="text" id="cityInput" placeholder="Enter a city" autocomplete="off">
+      <div class="city-wrap">
+        <input type="text" id="cityInput" placeholder="Enter a city" autocomplete="off">
+        <div class="city-suggestions" id="citySuggestions" style="display:none"></div>
+      </div>
       <button class="btn btn-primary" id="cityGo">Set</button>
       <button class="btn" id="geoBtn" title="Use my location">📍</button>
     </div>
@@ -155,10 +158,11 @@
   <section class="card">
     <div class="card-head">
       <div class="card-title">Reminders</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="card-note" id="remNote">0 active</div>
-        <button class="notif-btn" id="notifBtn" title="Enable notifications">🔔</button>
-      </div>
+      <div class="card-note" id="remNote">0 active</div>
+    </div>
+    <div class="notif-prompt" id="notifPrompt" style="display:none">
+      <span>🔔 Allow notifications to get alerts before due times</span>
+      <button class="btn btn-primary notif-prompt-btn" id="notifPromptBtn">Allow</button>
     </div>
     <div class="rem-row">
       <input type="text" id="remText" placeholder="What do you need to remember?" autocomplete="off">
@@ -168,14 +172,6 @@
     <div id="remList"></div>
   </section>
 
-  <!-- EXPORT -->
-  <section class="card">
-    <div class="card-head">
-      <div class="card-title">Export Data</div>
-      <div class="card-note">All features · one file</div>
-    </div>
-    <button class="btn btn-primary" id="exportAll" style="width:100%">⬇ Export All Data as CSV</button>
-  </section>
 
   <footer>MATAM SEN-NABA · your private daily tracker<br>Everything is saved only on this device.</footer>
 </div>
