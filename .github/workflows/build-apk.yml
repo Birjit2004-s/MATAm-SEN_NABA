@@ -16,20 +16,20 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
       - name: Set up Gradle 8.2
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.2'
 
-      - name: Configure Android SDK
+      - name: Build debug APK
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          SDKMANAGER=$(find $ANDROID_HOME -name sdkmanager -type f | head -1)
-          yes | $SDKMANAGER --licenses || true
-          $SDKMANAGER "platforms;android-34" "build-tools;34.0.0"
-
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+          gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
