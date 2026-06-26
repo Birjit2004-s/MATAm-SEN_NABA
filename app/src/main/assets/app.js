@@ -836,6 +836,35 @@ $('calNext').addEventListener('click', () => {
 });
 
 
+// ===== SPLASH SCREEN =====
+let _splashDone = false;
+
+function hideSplash() {
+  if (_splashDone) return;
+  _splashDone = true;
+  const el = $('splashScreen');
+  el.classList.add('splash-out');
+  setTimeout(() => { el.style.display = 'none'; }, 320);
+}
+
+function showSplashActions() {
+  $('splashLoading').style.display = 'none';
+  $('splashActions').style.display = '';
+}
+
+$('splashSignInBtn').addEventListener('click', () => {
+  if (typeof window.AndroidAuth !== 'undefined') {
+    window.AndroidAuth.signIn();
+  } else {
+    alert('Google Sign-In only works in the Android app.');
+  }
+});
+
+$('splashSkipBtn').addEventListener('click', hideSplash);
+
+// Show sign-in buttons after 3s if auto sign-in hasn't resolved
+setTimeout(() => { if (!_splashDone) showSplashActions(); }, 3000);
+
 // ===== FIREBASE CLOUD BACKUP =====
 // ----------------------------------------------------------------
 // SETUP REQUIRED — Fill in your Firebase project details below.
@@ -870,6 +899,7 @@ function setSyncStatus(s) {
 }
 
 function showSignedIn(user) {
+  hideSplash();
   $('accountSignedOut').style.display = 'none';
   $('accountSignedIn').style.display = '';
   $('acctName').textContent  = user.displayName || 'User';
@@ -880,6 +910,7 @@ function showSignedIn(user) {
 function showSignedOut() {
   $('accountSignedOut').style.display = '';
   $('accountSignedIn').style.display = 'none';
+  showSplashActions();
 }
 
 // Sync only the day that just changed (fast — one document write)
