@@ -377,7 +377,7 @@ function renderReminders() {
     const btn = document.createElement('button'); btn.className = 'check' + (r.done ? ' on' : '');
     btn.setAttribute('aria-label', (r.done ? 'Mark active: ' : 'Mark done: ') + r.text);
     btn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>';
-    btn.addEventListener('click', () => { r.done = !r.done; saveRem(); renderReminders(); });
+    btn.addEventListener('click', () => { r.done = !r.done; saveRem(); renderReminders(); scheduleAllNotifs(); });
 
     const bd = document.createElement('div'); bd.className = 'rem-body';
     const tx = document.createElement('div'); tx.className = 'rem-text'; tx.textContent = r.text; bd.appendChild(tx);
@@ -391,7 +391,7 @@ function renderReminders() {
       bd.appendChild(wn);
     }
     const del = document.createElement('button'); del.className = 'habit-del'; del.textContent = '×'; del.title = 'Delete'; del.style.marginTop = '2px';
-    del.addEventListener('click', () => { reminders = reminders.filter(x => x.id !== r.id); saveRem(); renderReminders(); });
+    del.addEventListener('click', () => { reminders = reminders.filter(x => x.id !== r.id); saveRem(); renderReminders(); scheduleAllNotifs(); });
     wrap.append(btn, bd, del); list.appendChild(wrap);
   });
   const active = reminders.filter(r => !r.done).length;
@@ -406,36 +406,84 @@ function addRem() {
   const when = $('remWhen').value || '';
   reminders.push({id: uid('r_'), text: t, when, done: false});
   saveRem(); $('remText').value = ''; $('remWhen').value = ''; renderReminders();
-  // Auto-request notification permission when a timed reminder is added
-  if (when) requestNotifPermission();
+  if (when) {
+    if (notifCanAsk()) requestNotifPermission();
+    else if (notifGranted()) scheduleAllNotifs();
+  }
 }
 
 // ===== NOTIFICATIONS =====
-function notifSupported() { return 'Notification' in window; }
+// On Android the WebView JS bridge (AndroidNotif) is used.
+// In a desktop browser the standard Web Notifications API is used as fallback.
+const _android = (typeof window.AndroidNotif !== 'undefined') ? window.AndroidNotif : null;
+
+function notifGranted() {
+  if (_android) return _android.hasPermission();
+  return ('Notification' in window) && Notification.permission === 'granted';
+}
+
+function notifCanAsk() {
+  if (_android) return !_android.hasPermission();
+  return ('Notification' in window) && Notification.permission === 'default';
+}
 
 function updateNotifPrompt() {
-  if (!notifSupported() || Notification.permission !== 'default') {
-    $('notifPrompt').style.display = 'none';
-    return;
-  }
-  $('notifPrompt').style.display = '';
+  $('notifPrompt').style.display = notifCanAsk() ? '' : 'none';
 }
 
 function requestNotifPermission() {
-  if (!notifSupported() || Notification.permission !== 'default') return;
-  Notification.requestPermission().then(updateNotifPrompt);
+  if (_android) {
+    _android.requestPermission();
+    // Android permission dialog is async — poll result after a delay
+    setTimeout(() => { updateNotifPrompt(); if (notifGranted()) scheduleAllNotifs(); }, 1500);
+    setTimeout(() => { updateNotifPrompt(); if (notifGranted()) scheduleAllNotifs(); }, 3000);
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(p => {
+      updateNotifPrompt();
+      if (p === 'granted') scheduleAllNotifs();
+    });
+  }
 }
 
 $('notifPromptBtn').addEventListener('click', requestNotifPermission);
 
-function fireNotif(title, body, when) {
-  if (!notifSupported() || Notification.permission !== 'granted') return;
-  const fullBody = when ? body + '\n📅 ' + fmtWhen(when) : body;
-  try { new Notification(title, { body: fullBody }); } catch(e) {}
+// Two-tone beep via Web Audio API (desktop browser only)
+function playNotifSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1100].forEach((freq, i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.2;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+      osc.start(t); osc.stop(t + 0.28);
+    });
+  } catch(e) {}
 }
 
-function checkReminderNotifs() {
-  if (!notifSupported() || Notification.permission !== 'granted') return;
+function fireNotif(title, body, when) {
+  if (!notifGranted()) return;
+  const fullBody = when ? body + '\n📅 ' + fmtWhen(when) : body;
+  if (_android) {
+    _android.showNotification(title, fullBody);
+  } else {
+    try { new Notification(title, { body: fullBody }); } catch(e) {}
+    playNotifSound();
+  }
+}
+
+// Precise scheduling with setTimeout + 30s safety-net interval
+const _notifTimers = {};
+
+function scheduleAllNotifs() {
+  if (!notifGranted()) return;
+
+  // Cancel all existing timers before rescheduling
+  Object.keys(_notifTimers).forEach(k => { clearTimeout(_notifTimers[k]); delete _notifTimers[k]; });
+
   const now = Date.now();
   const fired = LS.get('msn_notif_fired', {});
   let changed = false;
@@ -443,34 +491,59 @@ function checkReminderNotifs() {
   reminders.forEach(r => {
     if (r.done || !r.when) return;
     const due = new Date(r.when).getTime();
+    if (isNaN(due)) return;
 
     // 5-minute warning
-    const warn5Key = r.id + '_w5';
-    const warn5At = due - 5 * 60 * 1000;
-    if (!fired[warn5Key] && now >= warn5At && now < warn5At + 60000) {
-      fireNotif('Reminder in 5 minutes — MATAM SEN-NABA', r.text, r.when);
-      fired[warn5Key] = true; changed = true;
+    const w5Key = r.id + '_w5';
+    const w5At  = due - 5 * 60 * 1000;
+    if (!fired[w5Key]) {
+      const delay = w5At - now;
+      if (delay > 0) {
+        _notifTimers[w5Key] = setTimeout(() => {
+          const rem = reminders.find(x => x.id === r.id);
+          if (rem && !rem.done) {
+            fireNotif('Reminder in 5 minutes', rem.text, rem.when);
+            const f = LS.get('msn_notif_fired', {}); f[w5Key] = true; LS.set('msn_notif_fired', f);
+          }
+        }, delay);
+      } else if (delay > -60000) {
+        fireNotif('Reminder in 5 minutes', r.text, r.when);
+        fired[w5Key] = true; changed = true;
+      }
     }
 
-    // Due-time alert (1-minute window)
+    // Due-time alert
     const dueKey = r.id + '_due';
-    if (!fired[dueKey] && now >= due && now < due + 60000) {
-      fireNotif('⏰ Reminder due now — MATAM SEN-NABA', r.text, r.when);
-      fired[dueKey] = true; changed = true;
+    if (!fired[dueKey]) {
+      const delay = due - now;
+      if (delay > 0) {
+        _notifTimers[dueKey] = setTimeout(() => {
+          const rem = reminders.find(x => x.id === r.id);
+          if (rem && !rem.done) {
+            fireNotif('⏰ Reminder due now', rem.text, rem.when);
+            const f = LS.get('msn_notif_fired', {}); f[dueKey] = true; LS.set('msn_notif_fired', f);
+          }
+        }, delay);
+      } else if (delay > -120000) {
+        fireNotif('⏰ Reminder due now', r.text, r.when);
+        fired[dueKey] = true; changed = true;
+      }
     }
-  });
-
-  // Remove fired entries for deleted/done reminders
-  const activeIds = new Set(reminders.map(r => r.id));
-  Object.keys(fired).forEach(k => {
-    if (!activeIds.has(k.replace(/_w5$|_due$/, ''))) { delete fired[k]; changed = true; }
   });
 
   if (changed) LS.set('msn_notif_fired', fired);
+
+  // Clean up keys for reminders that are done or deleted
+  const activeIds = new Set(reminders.filter(r => !r.done).map(r => r.id));
+  const clean = {};
+  Object.keys(fired).forEach(k => {
+    if (activeIds.has(k.replace(/_w5$|_due$/, ''))) clean[k] = fired[k];
+  });
+  LS.set('msn_notif_fired', clean);
 }
 
-checkReminderNotifs();
-setInterval(checkReminderNotifs, 60000);
+// Safety-net: re-check every 30 s in case app was in background
+setInterval(() => { if (notifGranted()) scheduleAllNotifs(); }, 30000);
 
 // ===== WEATHER UI STATE =====
 function showWeatherControls() {
@@ -765,6 +838,7 @@ renderStudy();
 renderHabits();
 renderReminders();
 updateNotifPrompt();
+if (notifGranted()) scheduleAllNotifs();
 initCharts();
 renderDashboard();
 renderCalendar();
