@@ -97,12 +97,13 @@
       <div class="w-emoji" id="wEmoji">⛅</div>
       <div class="w-meta">
         <div class="w-temp" id="wTemp">—<span>°C</span></div>
-        <div class="w-cond" id="wCond">Set your city below</div>
+        <div class="w-cond" id="wCond">Detecting your location…</div>
         <div class="w-loc" id="wLoc"></div>
         <div class="w-extra" id="wExtra"></div>
       </div>
     </div>
-    <div class="w-controls">
+    <button class="w-change" id="wChange" style="display:none">✏ Change city</button>
+    <div class="w-controls" id="wControls" style="display:none">
       <div class="city-wrap">
         <input type="text" id="cityInput" placeholder="Enter a city" autocomplete="off">
         <div class="city-suggestions" id="citySuggestions" style="display:none"></div>

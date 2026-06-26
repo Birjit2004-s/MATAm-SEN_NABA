@@ -472,6 +472,19 @@ function checkReminderNotifs() {
 checkReminderNotifs();
 setInterval(checkReminderNotifs, 60000);
 
+// ===== WEATHER UI STATE =====
+function showWeatherControls() {
+  $('wControls').style.display = '';
+  $('wChange').style.display = 'none';
+}
+
+function hideWeatherControls() {
+  $('wControls').style.display = 'none';
+  $('wChange').style.display = '';
+}
+
+$('wChange').addEventListener('click', showWeatherControls);
+
 // ===== WEATHER =====
 const WMO = {
   0:['☀️','Clear sky'], 1:['🌤️','Mainly clear'], 2:['⛅','Partly cloudy'], 3:['☁️','Overcast'],
@@ -576,15 +589,51 @@ $('cityInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') { const v = e.target.value.trim(); hideSuggestions(); if (v) { setCity(v); e.target.value = ''; } }
   if (e.key === 'Escape') hideSuggestions();
 });
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+    const d = await res.json();
+    const city = d.city || d.locality || d.principalSubdivision || '';
+    const country = d.countryName || '';
+    return [city, country].filter(Boolean).join(', ') || 'My location';
+  } catch(e) { return 'My location'; }
+}
+
+async function fetchWeatherByCoords(lat, lon) {
+  $('wCond').textContent = 'Loading…';
+  const label = await reverseGeocode(lat, lon);
+  config.city = { name: label, lat, lon }; saveConfig();
+  await fetchWeather(lat, lon, label);
+  hideWeatherControls();
+}
+
+function autoDetectLocation() {
+  if (!navigator.geolocation) {
+    $('wCond').textContent = 'Set your city below';
+    showWeatherControls();
+    if (config.city) fetchWeather(config.city.lat, config.city.lon, config.city.name);
+    return;
+  }
+  $('wCond').textContent = 'Detecting your location…';
+  navigator.geolocation.getCurrentPosition(
+    pos => fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude),
+    () => {
+      showWeatherControls();
+      if (config.city) {
+        fetchWeather(config.city.lat, config.city.lon, config.city.name);
+      } else {
+        $('wCond').textContent = 'Set your city below';
+      }
+    },
+    { timeout: 8000 }
+  );
+}
+
 $('geoBtn').addEventListener('click', () => {
   if (!navigator.geolocation) { $('wCond').textContent = 'Location not supported on this device.'; return; }
   $('wCond').textContent = 'Locating…';
   navigator.geolocation.getCurrentPosition(
-    pos => {
-      const {latitude, longitude} = pos.coords;
-      config.city = {name: 'My location', lat: latitude, lon: longitude}; saveConfig();
-      fetchWeather(latitude, longitude, 'My location');
-    },
+    pos => fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude),
     () => { $('wCond').textContent = 'Location blocked — type a city instead.'; }
   );
 });
@@ -719,4 +768,4 @@ updateNotifPrompt();
 initCharts();
 renderDashboard();
 renderCalendar();
-if (config.city) { fetchWeather(config.city.lat, config.city.lon, config.city.name); }
+autoDetectLocation();
