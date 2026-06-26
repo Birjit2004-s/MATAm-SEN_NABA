@@ -24,8 +24,14 @@ body{
 .wordmark{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.22em;text-transform:uppercase;color:var(--teal)}
 .tagline{font-size:11px;letter-spacing:.04em;color:var(--muted)}
 .date-head{margin:14px 0 6px}
+.date-nav{display:flex;align-items:center;gap:10px}
+.date-nav-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;width:38px;height:38px;border-radius:10px;font-size:26px;display:grid;place-items:center;flex:none;transition:background .15s;line-height:1;padding:0}
+.date-nav-btn:hover:not(:disabled){background:rgba(0,0,0,.06);color:var(--ink)}
+.date-nav-btn:disabled{opacity:.2;cursor:default}
 .day{font-family:var(--display);font-weight:600;font-size:34px;line-height:1.05;letter-spacing:-.01em}
 .date-sub{color:var(--muted);font-size:15px;margin-top:2px}
+.btn-today{margin-top:10px;font-size:13px;color:var(--teal);border-color:#bfe0da;background:var(--teal-soft);width:100%}
+.btn-today:hover{background:#d3ebe7}
 
 /* ---------- CARD ---------- */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-top:16px}
@@ -41,19 +47,18 @@ body{
 .dash-num{font-family:var(--mono);font-weight:600;font-size:23px;letter-spacing:-.02em}
 .dash-cap{font-size:10px;letter-spacing:.09em;text-transform:uppercase;opacity:.85;margin-top:5px}
 .dash-body{padding:18px}
-.dash-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px}
+.dash-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px}
 .seg{display:inline-flex;background:var(--bg);border-radius:10px;padding:3px;flex:none}
 .seg button{border:none;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:6px 11px;border-radius:8px;cursor:pointer}
 .seg button.on{background:var(--surface);color:var(--teal);box-shadow:var(--shadow)}
-.bar-item{margin-bottom:14px}
-.bar-item:last-child{margin-bottom:0}
-.bar-top{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
-.bar-name{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px}
-.bar-time{font-family:var(--mono);color:var(--muted);white-space:nowrap}
-.bar-track{height:12px;background:var(--bg);border-radius:8px;overflow:hidden}
-.bar-fill{height:100%;border-radius:8px;background:var(--teal);width:0;transition:width .55s cubic-bezier(.2,.7,.2,1)}
-.bar-fill.lead{background:linear-gradient(90deg,var(--amber),#f1bb5d)}
-.dash-empty{color:var(--muted);font-size:14px;text-align:center;padding:8px 0}
+.dash-empty{color:var(--muted);font-size:14px;text-align:center;padding:20px 0}
+
+/* ---------- CHART TABS ---------- */
+.ctabs{display:flex;gap:4px;margin-bottom:14px}
+.ctab{border:none;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:6px 13px;border-radius:8px;cursor:pointer;transition:all .15s}
+.ctab.on{background:var(--teal-soft);color:var(--teal)}
+.ctab:hover:not(.on){background:var(--bg)}
+.chart-wrap{position:relative;min-height:60px}
 
 /* ---------- WEATHER ---------- */
 .weather{display:flex;align-items:center;gap:16px}
@@ -124,8 +129,46 @@ input:focus-visible{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px v
 .btn-primary:hover{background:#0c7a6f}
 .btn-add{width:100%;margin-top:12px;border-style:dashed;color:var(--teal);border-color:#bfe0da;background:var(--teal-soft)}
 .btn-add:hover{background:#d3ebe7}
-.btn:focus-visible,.check:focus-visible,.rowx:focus-visible,.seg button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--teal-soft)}
+.btn:focus-visible,.check:focus-visible,.rowx:focus-visible,.seg button:focus-visible,.ctab:focus-visible{outline:none;box-shadow:0 0 0 3px var(--teal-soft)}
 .add-inline{display:flex;gap:8px;margin-top:12px}
+
+/* ---------- CALENDAR ---------- */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cal-month{font-family:var(--display);font-weight:600;font-size:15px}
+.cal-arrow{border:none;background:transparent;color:var(--muted);cursor:pointer;width:34px;height:34px;border-radius:9px;font-size:22px;display:grid;place-items:center;transition:background .15s;line-height:1}
+.cal-arrow:hover{background:var(--bg);color:var(--ink)}
+.cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
+.cal-weekday{text-align:center;font-size:10px;font-weight:600;letter-spacing:.05em;color:var(--muted);padding:4px 0;text-transform:uppercase}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-cell{min-height:46px;border-radius:10px;padding:5px 3px 4px;display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:background .15s;gap:3px}
+.cal-cell:hover{background:var(--bg)}
+.cal-blank{cursor:default;pointer-events:none}
+.cal-blank:hover{background:transparent}
+.cal-today{background:var(--teal-soft)}
+.cal-today .cal-num{color:var(--teal);font-weight:700}
+.cal-selected{background:var(--teal) !important}
+.cal-selected .cal-num{color:#fff !important}
+.cal-num{font-size:13px;font-weight:500;line-height:1}
+.cal-dots{display:flex;gap:2px;justify-content:center}
+.cal-dot{width:5px;height:5px;border-radius:50%;display:inline-block;vertical-align:middle}
+.cal-dot-study{background:var(--teal)}
+.cal-dot-habit{background:var(--amber)}
+.cal-legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:10px}
+.cal-detail{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+.cal-detail-date{font-family:var(--display);font-weight:600;font-size:14px;margin-bottom:12px}
+.cal-detail-section{margin-bottom:12px}
+.cal-detail-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
+.cal-detail-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:3px 0}
+.cal-detail-mins{font-family:var(--mono);color:var(--muted);font-size:12px}
+.cal-detail-none{font-size:13px;color:var(--muted)}
+
+/* ---------- NOTIFICATION BUTTON ---------- */
+.notif-btn{border:none;background:transparent;cursor:pointer;font-size:17px;padding:4px 7px;border-radius:8px;line-height:1;transition:background .15s}
+.notif-btn:hover{background:var(--bg)}
+.notif-btn.granted{filter:drop-shadow(0 0 3px var(--teal))}
+.notif-btn.denied{opacity:.35;cursor:not-allowed}
+
+/* ---------- EXPORT ---------- */
 
 /* ---------- FOOTER ---------- */
 footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px;line-height:1.7}

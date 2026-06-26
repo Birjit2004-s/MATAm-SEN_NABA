@@ -16,6 +16,10 @@ const dateKey = d =>
 const uid = p => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3);
 const TODAY = dateKey(new Date());
 
+// ===== VIEW STATE =====
+let viewDate = new Date();
+let viewKey = TODAY;
+
 // ===== CONFIG =====
 const DEFAULT_HABITS = [
   {id:'h_water', name:'Drink 3 L water'},
@@ -31,17 +35,43 @@ function loadDay(key) {
   const d = LS.get('msn_day_' + key, null);
   return d ? {study: d.study || [], habits: d.habits || {}} : {study: [], habits: {}};
 }
-let day = loadDay(TODAY);
-const saveDay = () => LS.set('msn_day_' + TODAY, day);
+let day = loadDay(viewKey);
+const saveDay = () => LS.set('msn_day_' + viewKey, day);
 
-// ===== DATE DISPLAY =====
-(function() {
-  const now = new Date();
-  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  $('dayName').textContent = days[now.getDay()];
-  $('dateSub').textContent = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
-})();
+// ===== DAY NAVIGATION =====
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function updateDayNav() {
+  const isToday = viewKey === TODAY;
+  $('dayName').textContent = isToday ? 'Today — ' + DAYS[viewDate.getDay()] : DAYS[viewDate.getDay()];
+  $('dateSub').textContent = `${viewDate.getDate()} ${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
+  $('dayNavNext').disabled = isToday;
+  $('dayNavToday').style.display = isToday ? 'none' : '';
+}
+
+function navigateDay(delta) {
+  const d = new Date(viewDate);
+  d.setDate(d.getDate() + delta);
+  if (dateKey(d) > TODAY) return;
+  viewDate = d;
+  viewKey = dateKey(viewDate);
+  day = loadDay(viewKey);
+  updateDayNav();
+  renderStudy();
+  renderHabits();
+}
+
+$('dayNavPrev').addEventListener('click', () => navigateDay(-1));
+$('dayNavNext').addEventListener('click', () => navigateDay(1));
+$('dayNavToday').addEventListener('click', () => {
+  viewDate = new Date();
+  viewKey = TODAY;
+  day = loadDay(viewKey);
+  updateDayNav();
+  renderStudy();
+  renderHabits();
+});
 
 // ===== DASHBOARD =====
 let dashRange = 'all';
@@ -57,11 +87,11 @@ function hm(m) {
 
 function aggregate(range) {
   const byTopic = {}; let totalMins = 0; const seen = new Set(); let best = 0;
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-6); cutoff.setHours(0,0,0,0);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - (range === '7' ? 6 : 29)); cutoff.setHours(0,0,0,0);
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
     if (!k || k.indexOf('msn_day_') !== 0) continue;
-    if (range === '7' && dayKeyToDate(k) < cutoff) continue;
+    if ((range === '7' || range === '30') && dayKeyToDate(k) < cutoff) continue;
     let d; try { d = JSON.parse(localStorage.getItem(k)); } catch(e) { continue; }
     if (!d || !Array.isArray(d.study)) continue;
     let dm = 0;
@@ -86,30 +116,138 @@ function renderDashboard() {
   $('dTotal').textContent = hm(a.totalMins);
   $('dDays').textContent = a.days;
   $('dBest').textContent = hm(a.best);
-  const bars = $('bars');
-  if (a.topics.length === 0) {
-    bars.innerHTML = '<div class="dash-empty">Add topics in the table below — your time per topic will build up here automatically.</div>';
-    return;
-  }
-  const max = a.topics[0].mins || 1;
-  bars.innerHTML = '';
-  a.topics.slice(0, 12).forEach((t, i) => {
-    const item = document.createElement('div'); item.className = 'bar-item';
-    const top = document.createElement('div'); top.className = 'bar-top';
-    const nm = document.createElement('span'); nm.className = 'bar-name'; nm.textContent = t.name;
-    const tm = document.createElement('span'); tm.className = 'bar-time'; tm.textContent = hm(t.mins);
-    top.append(nm, tm);
-    const track = document.createElement('div'); track.className = 'bar-track';
-    const fill = document.createElement('div'); fill.className = 'bar-fill' + (i === 0 ? ' lead' : '');
-    track.appendChild(fill);
-    item.append(top, track); bars.appendChild(item);
-    requestAnimationFrame(() => { fill.style.width = Math.max(4, Math.round(t.mins/max*100)) + '%'; });
-  });
+  if (topicChart) updateCharts();
 }
 
 $('dashSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
   $('dashSeg').querySelectorAll('button').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); dashRange = b.dataset.range; renderDashboard();
+}));
+
+// ===== CHARTS =====
+const CHART_COLORS = [
+  '#0e8c7f','#e8a33d','#5b9bd5','#c45c5c','#9b77c7',
+  '#4ab0b8','#7fad7f','#d4776a','#e88c3d','#8090a0'
+];
+
+let topicChart = null;
+let dailyChart = null;
+
+function getDailyData(numDays) {
+  const result = [];
+  const now = new Date();
+  for (let i = numDays - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const key = dateKey(d);
+    const dd = loadDay(key);
+    const mins = dd.study.reduce((s, r) => s + (parseInt(r.minutes) || 0), 0);
+    result.push({
+      label: String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0'),
+      mins
+    });
+  }
+  return result;
+}
+
+function initCharts() {
+  if (typeof Chart === 'undefined') return;
+
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+  Chart.defaults.color = '#6b7a88';
+
+  topicChart = new Chart($('topicCanvas').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        backgroundColor: CHART_COLORS,
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '60%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { padding: 14, boxWidth: 11, boxHeight: 11, font: { size: 12 } }
+        },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.label}: ${hm(ctx.parsed)}` }
+        }
+      },
+      animation: { duration: 500 }
+    }
+  });
+
+  dailyChart = new Chart($('dailyCanvas').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Minutes',
+        data: [],
+        backgroundColor: 'rgba(14,140,127,0.78)',
+        hoverBackgroundColor: 'rgba(14,140,127,1)',
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + hm(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          grid: { color: 'rgba(220,227,233,0.7)' },
+          ticks: { font: { size: 11 }, callback: v => v + 'm' },
+          beginAtZero: true
+        }
+      },
+      animation: { duration: 400 }
+    }
+  });
+
+  updateCharts();
+}
+
+function updateCharts() {
+  if (!topicChart || !dailyChart) return;
+
+  const a = aggregate(dashRange);
+
+  if (a.topics.length === 0) {
+    $('topicEmpty').style.display = '';
+    $('topicCanvas').style.display = 'none';
+  } else {
+    $('topicEmpty').style.display = 'none';
+    $('topicCanvas').style.display = '';
+    topicChart.data.labels = a.topics.map(t => t.name);
+    topicChart.data.datasets[0].data = a.topics.map(t => t.mins);
+    topicChart.data.datasets[0].backgroundColor = CHART_COLORS.slice(0, a.topics.length);
+    topicChart.update();
+  }
+
+  const numDays = dashRange === '7' ? 7 : 30;
+  const daily = getDailyData(numDays);
+  dailyChart.data.labels = daily.map(d => d.label);
+  dailyChart.data.datasets[0].data = daily.map(d => d.mins);
+  dailyChart.update();
+}
+
+$('chartTabs').querySelectorAll('.ctab').forEach(b => b.addEventListener('click', () => {
+  $('chartTabs').querySelectorAll('.ctab').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  const chart = b.dataset.chart;
+  $('wrapTopic').style.display = chart === 'topic' ? '' : 'none';
+  $('wrapDay').style.display = chart === 'day' ? '' : 'none';
 }));
 
 // ===== STUDY =====
@@ -269,6 +407,76 @@ function addRem() {
   saveRem(); $('remText').value = ''; $('remWhen').value = ''; renderReminders();
 }
 
+// ===== NOTIFICATIONS =====
+function updateNotifBtn() {
+  const btn = $('notifBtn');
+  if (!('Notification' in window)) { btn.style.display = 'none'; return; }
+  if (Notification.permission === 'granted') {
+    btn.classList.add('granted'); btn.classList.remove('denied');
+    btn.title = 'Notifications enabled';
+  } else if (Notification.permission === 'denied') {
+    btn.classList.add('denied'); btn.classList.remove('granted');
+    btn.title = 'Notifications blocked — allow them in browser/device settings';
+  } else {
+    btn.classList.remove('granted', 'denied');
+    btn.title = 'Tap to enable notifications';
+  }
+}
+
+$('notifBtn').addEventListener('click', () => {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'denied') return;
+  Notification.requestPermission().then(updateNotifBtn);
+});
+
+function fireNotif(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, { body, icon: '' });
+  } catch(e) {}
+}
+
+function checkReminderNotifs() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const now = Date.now();
+  const fired = LS.get('msn_notif_fired', {});
+  let changed = false;
+
+  reminders.forEach(r => {
+    if (r.done || !r.when) return;
+    const due = new Date(r.when).getTime();
+
+    // 5-minute warning
+    const warn5Key = r.id + '_w5';
+    const warn5At = due - 5 * 60 * 1000;
+    if (!fired[warn5Key] && now >= warn5At && now < warn5At + 60000) {
+      fireNotif('Reminder in 5 minutes', r.text);
+      fired[warn5Key] = true; changed = true;
+    }
+
+    // Due-time alert (1-minute window to catch it even if tab was inactive)
+    const dueKey = r.id + '_due';
+    if (!fired[dueKey] && now >= due && now < due + 60000) {
+      fireNotif('⏰ Reminder due now', r.text);
+      fired[dueKey] = true; changed = true;
+    }
+  });
+
+  // Clean up keys for reminders that are done or deleted
+  const activeIds = new Set(reminders.map(r => r.id));
+  Object.keys(fired).forEach(k => {
+    const id = k.replace(/_w5$|_due$/, '');
+    if (!activeIds.has(id)) { delete fired[k]; changed = true; }
+  });
+
+  if (changed) LS.set('msn_notif_fired', fired);
+}
+
+// Check on load and then every 60 seconds
+checkReminderNotifs();
+setInterval(checkReminderNotifs, 60000);
+updateNotifBtn();
+
 // ===== WEATHER =====
 const WMO = {
   0:['☀️','Clear sky'], 1:['🌤️','Mainly clear'], 2:['⛅','Partly cloudy'], 3:['☁️','Overcast'],
@@ -330,9 +538,237 @@ $('geoBtn').addEventListener('click', () => {
   );
 });
 
+// ===== CALENDAR =====
+const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CAL_DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+let calDate = new Date();
+let selectedCalDay = null;
+
+function renderCalendar() {
+  const year = calDate.getFullYear();
+  const month = calDate.getMonth();
+  $('calMonthLabel').textContent = CAL_MONTHS[month] + ' ' + year;
+
+  const grid = $('calGrid');
+  grid.innerHTML = '';
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    const blank = document.createElement('div');
+    blank.className = 'cal-cell cal-blank';
+    grid.appendChild(blank);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = dateKey(new Date(year, month, d));
+    const dd = loadDay(key);
+    const mins = dd.study.reduce((s, r) => s + (parseInt(r.minutes) || 0), 0);
+    const habitsTotal = config.habits.length;
+    const habitsDone = habitsTotal ? config.habits.filter(h => dd.habits[h.id]).length : 0;
+
+    const cell = document.createElement('div');
+    let cls = 'cal-cell';
+    if (key === TODAY) cls += ' cal-today';
+    if (key === selectedCalDay) cls += ' cal-selected';
+    cell.className = cls;
+
+    const numEl = document.createElement('span');
+    numEl.className = 'cal-num';
+    numEl.textContent = d;
+    cell.appendChild(numEl);
+
+    if (mins > 0 || habitsDone > 0) {
+      const dots = document.createElement('div');
+      dots.className = 'cal-dots';
+      if (mins > 0) {
+        const dot = document.createElement('span');
+        dot.className = 'cal-dot cal-dot-study';
+        dots.appendChild(dot);
+      }
+      if (habitsDone > 0 && habitsTotal > 0) {
+        const dot = document.createElement('span');
+        dot.className = 'cal-dot cal-dot-habit';
+        dot.style.opacity = String(Math.max(0.35, habitsDone / habitsTotal));
+        dots.appendChild(dot);
+      }
+      cell.appendChild(dots);
+    }
+
+    cell.addEventListener('click', () => {
+      selectedCalDay = selectedCalDay === key ? null : key;
+      renderCalendar();
+    });
+
+    grid.appendChild(cell);
+  }
+
+  renderCalDetail(selectedCalDay);
+}
+
+function renderCalDetail(key) {
+  const detail = $('calDetail');
+  if (!key) { detail.style.display = 'none'; return; }
+
+  const dd = loadDay(key);
+  const [y, m, d] = key.split('-');
+  const date = new Date(+y, +m-1, +d);
+
+  let html = `<div class="cal-detail-date">${CAL_DAY_NAMES[date.getDay()]}, ${+d} ${CAL_MONTHS[+m-1]} ${y}</div>`;
+
+  const studyRows = dd.study.filter(r => (r.topic || '').trim() || (parseInt(r.minutes) || 0) > 0);
+  html += '<div class="cal-detail-section"><div class="cal-detail-label">Study';
+  if (studyRows.length > 0) {
+    const totalMins = studyRows.reduce((s, r) => s + (parseInt(r.minutes) || 0), 0);
+    html += ' · ' + hm(totalMins);
+  }
+  html += '</div>';
+  if (studyRows.length > 0) {
+    studyRows.forEach(r => {
+      html += `<div class="cal-detail-row"><span>${r.topic || '(no topic)'}</span><span class="cal-detail-mins">${parseInt(r.minutes) || 0}m</span></div>`;
+    });
+  } else {
+    html += '<div class="cal-detail-none">No study logged.</div>';
+  }
+  html += '</div>';
+
+  if (config.habits.length > 0) {
+    html += '<div class="cal-detail-section"><div class="cal-detail-label">Habits</div>';
+    config.habits.forEach(h => {
+      const done = !!(dd.habits && dd.habits[h.id]);
+      html += `<div class="cal-detail-row"><span>${done ? '✅' : '⬜'} ${h.name}</span></div>`;
+    });
+    html += '</div>';
+  }
+
+  detail.innerHTML = html;
+  detail.style.display = '';
+}
+
+$('calPrev').addEventListener('click', () => {
+  calDate.setMonth(calDate.getMonth() - 1);
+  selectedCalDay = null;
+  renderCalendar();
+});
+$('calNext').addEventListener('click', () => {
+  calDate.setMonth(calDate.getMonth() + 1);
+  selectedCalDay = null;
+  renderCalendar();
+});
+
+// ===== EXPORT CSV =====
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r =>
+    r.map(v => `"${String(v === null || v === undefined ? '' : v).replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportAllCSV() {
+  const exportDate = new Date().toLocaleDateString(undefined, {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  const rows = [];
+
+  // ── Header ──
+  rows.push(['MATAM SEN-NABA — Full Data Export']);
+  rows.push(['Exported:', exportDate]);
+  rows.push([]);
+
+  // ── Study / Work ──
+  rows.push(['=== STUDY / WORK ===']);
+  rows.push(['Date', 'Topic', 'Minutes']);
+  const studyRows = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith('msn_day_')) continue;
+    const date = k.replace('msn_day_', '');
+    let d; try { d = JSON.parse(localStorage.getItem(k)); } catch(e) { continue; }
+    if (!d || !Array.isArray(d.study)) continue;
+    d.study
+      .filter(r => (r.topic || '').trim() || (parseInt(r.minutes) || 0) > 0)
+      .forEach(r => studyRows.push([date, r.topic || '', parseInt(r.minutes) || 0]));
+  }
+  studyRows.sort((a, b) => a[0] < b[0] ? -1 : 1);
+  studyRows.forEach(r => rows.push(r));
+  if (studyRows.length === 0) rows.push(['No study data recorded yet.']);
+  rows.push([]);
+
+  // ── Daily Habits ──
+  rows.push(['=== DAILY HABITS ===']);
+  rows.push(['Date', 'Habit', 'Completed']);
+  const habitRows = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith('msn_day_')) continue;
+    const date = k.replace('msn_day_', '');
+    let d; try { d = JSON.parse(localStorage.getItem(k)); } catch(e) { continue; }
+    config.habits.forEach(h => {
+      habitRows.push([date, h.name, d && d.habits && d.habits[h.id] ? 'Yes' : 'No']);
+    });
+  }
+  habitRows.sort((a, b) => a[0] < b[0] ? -1 : 1);
+  habitRows.forEach(r => rows.push(r));
+  if (habitRows.length === 0) rows.push(['No habit data recorded yet.']);
+  rows.push([]);
+
+  // ── Reminders ──
+  rows.push(['=== REMINDERS ===']);
+  rows.push(['Text', 'Due Date', 'Completed']);
+  if (reminders.length > 0) {
+    reminders.forEach(r => rows.push([r.text, r.when || '', r.done ? 'Yes' : 'No']));
+  } else {
+    rows.push(['No reminders recorded yet.']);
+  }
+  rows.push([]);
+
+  // ── Dashboard Summary ──
+  const agg = aggregate('all');
+  rows.push(['=== DASHBOARD SUMMARY ===']);
+  rows.push([]);
+
+  rows.push(['OVERVIEW', '']);
+  rows.push(['Total Study Time', hm(agg.totalMins)]);
+  rows.push(['Total Minutes Studied', agg.totalMins]);
+  rows.push(['Days with Study Data', agg.days]);
+  rows.push(['Best Single Day', hm(agg.best)]);
+  rows.push(['Active Reminders', reminders.filter(r => !r.done).length]);
+  rows.push(['Completed Reminders', reminders.filter(r => r.done).length]);
+  rows.push(['Total Habits', config.habits.length]);
+  rows.push([]);
+
+  rows.push(['TOP TOPICS BY TIME', '', '', '']);
+  rows.push(['Rank', 'Topic', 'Total Time', 'Total Minutes']);
+  if (agg.topics.length > 0) {
+    agg.topics.forEach((t, i) => rows.push([i + 1, t.name, hm(t.mins), t.mins]));
+  } else {
+    rows.push(['No topics recorded yet.']);
+  }
+  rows.push([]);
+
+  rows.push(['HABIT STREAKS', '']);
+  rows.push(['Habit', 'Current Streak']);
+  if (config.habits.length > 0) {
+    config.habits.forEach(h => rows.push([h.name, streak(h.id) + ' day(s)']));
+  } else {
+    rows.push(['No habits configured.']);
+  }
+
+  downloadCSV('matam-sennaba-export.csv', rows);
+}
+
+$('exportAll').addEventListener('click', exportAllCSV);
+
 // ===== INIT =====
+updateDayNav();
 renderStudy();
 renderHabits();
 renderReminders();
+initCharts();
 renderDashboard();
+renderCalendar();
 if (config.city) { fetchWeather(config.city.lat, config.city.lon, config.city.name); }

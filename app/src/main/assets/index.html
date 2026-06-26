@@ -19,8 +19,15 @@
   </div>
 
   <div class="date-head">
-    <div class="day" id="dayName">—</div>
-    <div class="date-sub" id="dateSub">—</div>
+    <div class="date-nav">
+      <button class="date-nav-btn" id="dayNavPrev">&#8249;</button>
+      <div>
+        <div class="day" id="dayName">—</div>
+        <div class="date-sub" id="dateSub">—</div>
+      </div>
+      <button class="date-nav-btn" id="dayNavNext">&#8250;</button>
+    </div>
+    <button class="btn btn-today" id="dayNavToday" style="display:none">&#8617; Back to Today</button>
   </div>
 
   <!-- DASHBOARD -->
@@ -32,14 +39,52 @@
     </div>
     <div class="dash-body">
       <div class="dash-head">
-        <div class="card-title">Time by topic</div>
+        <div class="card-title">Analytics</div>
         <div class="seg" id="dashSeg">
-          <button data-range="all" class="on">All time</button>
           <button data-range="7">7 days</button>
+          <button data-range="30">30 days</button>
+          <button data-range="all" class="on">All time</button>
         </div>
       </div>
-      <div id="bars"></div>
+      <div class="ctabs" id="chartTabs">
+        <button class="ctab on" data-chart="topic">By Topic</button>
+        <button class="ctab" data-chart="day">By Day</button>
+      </div>
+      <div class="chart-wrap" id="wrapTopic">
+        <canvas id="topicCanvas"></canvas>
+        <div class="dash-empty" id="topicEmpty" style="display:none">Add topics in the table below to see the chart.</div>
+      </div>
+      <div class="chart-wrap" id="wrapDay" style="display:none">
+        <canvas id="dailyCanvas"></canvas>
+      </div>
     </div>
+  </section>
+
+  <!-- CALENDAR -->
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title">Calendar</div>
+    </div>
+    <div class="cal-nav">
+      <button class="cal-arrow" id="calPrev">&#8249;</button>
+      <div class="cal-month" id="calMonthLabel">—</div>
+      <button class="cal-arrow" id="calNext">&#8250;</button>
+    </div>
+    <div class="cal-weekdays">
+      <div class="cal-weekday">Su</div>
+      <div class="cal-weekday">Mo</div>
+      <div class="cal-weekday">Tu</div>
+      <div class="cal-weekday">We</div>
+      <div class="cal-weekday">Th</div>
+      <div class="cal-weekday">Fr</div>
+      <div class="cal-weekday">Sa</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-legend">
+      <span class="cal-dot cal-dot-study"></span> Study &nbsp;
+      <span class="cal-dot cal-dot-habit"></span> Habits
+    </div>
+    <div class="cal-detail" id="calDetail" style="display:none"></div>
   </section>
 
   <!-- WEATHER -->
@@ -110,7 +155,10 @@
   <section class="card">
     <div class="card-head">
       <div class="card-title">Reminders</div>
-      <div class="card-note" id="remNote">0 active</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="card-note" id="remNote">0 active</div>
+        <button class="notif-btn" id="notifBtn" title="Enable notifications">🔔</button>
+      </div>
     </div>
     <div class="rem-row">
       <input type="text" id="remText" placeholder="What do you need to remember?" autocomplete="off">
@@ -120,9 +168,19 @@
     <div id="remList"></div>
   </section>
 
+  <!-- EXPORT -->
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title">Export Data</div>
+      <div class="card-note">All features · one file</div>
+    </div>
+    <button class="btn btn-primary" id="exportAll" style="width:100%">⬇ Export All Data as CSV</button>
+  </section>
+
   <footer>MATAM SEN-NABA · your private daily tracker<br>Everything is saved only on this device.</footer>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
