@@ -22,11 +22,9 @@ body{
 /* ---------- SPLASH SCREEN ---------- */
 #splashScreen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#fff;transition:opacity .3s ease,transform .3s ease}
 #splashScreen.splash-out{opacity:0;transform:translateY(-12px);pointer-events:none}
-.splash-top{background:linear-gradient(160deg,var(--teal),var(--teal-deep));flex:1.3;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;padding:48px 28px 36px;text-align:center}
-.splash-wordmark{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:.18em;text-transform:uppercase}
-.splash-tagline{font-size:13px;letter-spacing:.07em;opacity:.8;margin-top:6px}
-.splash-icon{font-size:72px;margin-top:28px;line-height:1}
-.splash-bottom{flex:1;padding:32px 28px 44px;display:flex;flex-direction:column;justify-content:center}
+.splash-top{background:#0f0f1a;flex:1.3;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px 32px;text-align:center;gap:18px}
+.splash-sub-tag{font-size:12px;letter-spacing:.1em;color:rgba(255,255,255,.5);text-transform:uppercase}
+.splash-bottom{flex:1;padding:30px 28px 44px;display:flex;flex-direction:column;justify-content:center}
 .splash-title{font-family:var(--display);font-size:24px;font-weight:700;line-height:1.25;color:var(--ink);margin-bottom:10px}
 .splash-sub{font-size:14px;color:var(--muted);line-height:1.65;margin-bottom:28px}
 .splash-loading{display:flex;justify-content:center;align-items:center;padding:16px 0}
@@ -36,6 +34,17 @@ body{
 .btn-google-big:hover{background:#f8f9fa;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .splash-skip{display:block;width:100%;margin-top:14px;background:transparent;border:none;color:var(--muted);font:inherit;font-size:14px;cursor:pointer;text-align:center;padding:10px;border-radius:10px;transition:color .15s}
 .splash-skip:hover{color:var(--ink)}
+
+/* ---------- APP LOGO ---------- */
+.app-logo{width:180px;height:180px;border-radius:38px;position:relative;overflow:hidden;background:linear-gradient(135deg,#0059ff,#7a00ff,#ff007f,#ff8c00);box-shadow:0 20px 40px rgba(0,0,0,.5),inset 0 0 20px rgba(255,255,255,.15);display:flex;justify-content:flex-end;align-items:center;flex-direction:column}
+.logo-ring{position:absolute;top:10px;width:130px;height:130px;border:4px solid rgba(255,255,255,.9);border-radius:50%}
+.logo-letter{position:absolute;top:18px;font-size:95px;font-weight:900;line-height:1;background:linear-gradient(to bottom,#ffe600,#ff9d00,#ff0095,#00bfff);-webkit-background-clip:text;color:transparent;font-family:Arial,Helvetica,sans-serif}
+.logo-clock{position:absolute;top:88px;width:32px;height:32px;border:3px solid white;border-radius:50%;background:rgba(255,255,255,.08)}
+.logo-clock::after{content:"";width:6px;height:6px;background:white;border-radius:50%;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.logo-hand{position:absolute;left:50%;bottom:50%;transform-origin:bottom;background:white;border-radius:3px}
+.logo-hour{width:3px;height:9px;transform:translateX(-50%) rotate(0deg)}
+.logo-minute{width:2px;height:13px;transform:translateX(-50%) rotate(120deg)}
+.logo-name{margin-bottom:13px;font-size:29px;letter-spacing:3px;font-weight:900;background:linear-gradient(90deg,white,#9de8ff,#ffe066,#ff8c42,#64d5ff);-webkit-background-clip:text;color:transparent;font-family:Arial,Helvetica,sans-serif}
 
 /* ---------- BRAND / DATE ---------- */
 .brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px}

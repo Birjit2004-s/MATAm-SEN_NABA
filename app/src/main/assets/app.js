@@ -867,21 +867,45 @@ $('splashSkipBtn').addEventListener('click', hideSplash);
 
 // Error codes from Google Sign-In
 const SIGN_IN_ERRORS = {
-  10:    'App not registered in Firebase (code 10) — SHA-1 fingerprint mismatch.',
-  7:     'Network error (code 7) — check your internet connection.',
+  10:    'SHA-1 or package name not registered in Firebase (code 10).',
+  7:     'No internet connection (code 7).',
   12500: 'Google Play Services error (code 12500).',
   12501: 'Sign-in cancelled.',
 };
 
-window._onGoogleSignInError = function(code) {
-  const msg = SIGN_IN_ERRORS[code] || 'Sign-in failed (code ' + code + ').';
+function showSplashError(msg) {
   $('splashLoading').style.display = 'none';
   $('splashActions').style.display = '';
+  const old = $('splashErrMsg');
+  if (old) old.remove();
   const errEl = document.createElement('div');
+  errEl.id = 'splashErrMsg';
   errEl.style.cssText = 'color:#cf5757;font-size:13px;margin-bottom:14px;padding:10px 12px;background:#faecec;border-radius:10px;line-height:1.5';
   errEl.textContent = '⚠ ' + msg;
   $('splashActions').insertBefore(errEl, $('splashActions').firstChild);
+}
+
+window._onGoogleSignInError = function(code, detail) {
+  const msg = SIGN_IN_ERRORS[code] || ('Sign-in failed — code ' + code + (detail ? ': ' + detail : '') + '.');
+  showSplashError(msg);
 };
+
+window._onGoogleSignIn = (function() {
+  const _orig = window._onGoogleSignIn;
+  return async function(data) {
+    if (!data || !data.idToken) return;
+    if (typeof firebase === 'undefined' || !db) {
+      showSplashError('Firebase not ready — check your internet connection and reopen the app.');
+      return;
+    }
+    try {
+      const cred = firebase.auth.GoogleAuthProvider.credential(data.idToken);
+      await firebase.auth().signInWithCredential(cred);
+    } catch(e) {
+      showSplashError('Firebase sign-in error: ' + (e.message || e.code || 'unknown'));
+    }
+  };
+})();
 
 // Show sign-in buttons after 3s if auto sign-in hasn't resolved
 setTimeout(() => { if (!_splashDone) showSplashActions(); }, 3000);
@@ -1053,18 +1077,7 @@ async function loadFromCloud() {
   };
 })();
 
-// Called by Android after native Google Sign-In succeeds
-window._onGoogleSignIn = async function(data) {
-  if (!data || !data.idToken) return;
-  if (typeof firebase === 'undefined' || !db) return;
-  try {
-    const cred = firebase.auth.GoogleAuthProvider.credential(data.idToken);
-    await firebase.auth().signInWithCredential(cred);
-    // auth().onAuthStateChanged fires next and calls loadFromCloud()
-  } catch(e) {
-    console.error('signInWithCredential error:', e);
-  }
-};
+// _onGoogleSignIn is defined above in the SPLASH SCREEN section with error handling
 
 // Called by Android after sign-out
 window._onGoogleSignOut = function() {

@@ -182,7 +182,8 @@ public class MainActivity extends Activity {
                 notifySignedIn(acct);
             } catch (ApiException e) {
                 int code = e.getStatusCode();
-                runJs("window._onGoogleSignInError && window._onGoogleSignInError(" + code + ")");
+                String detail = esc(e.getMessage());
+                runJs("window._onGoogleSignInError && window._onGoogleSignInError(" + code + ",'" + detail + "')");
             }
         }
     }
