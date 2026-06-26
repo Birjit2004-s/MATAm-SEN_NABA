@@ -849,15 +849,14 @@ $('calNext').addEventListener('click', () => {
 //     Authentication → Sign-in method → Google → Web SDK configuration
 // ----------------------------------------------------------------
 const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey:            "AIzaSyARhE0TrL27n6Q1d5UdkklLta_0eDjEOOc",
+  authDomain:        "com-matam-sennaba.firebaseapp.com",
+  projectId:         "com-matam-sennaba",
+  storageBucket:     "com-matam-sennaba.firebasestorage.app",
+  messagingSenderId: "943577031643",
+  appId:             "1:943577031643:web:540f0324190f24eff93dfe"
 };
-// Paste your Web Client ID here (ends with .apps.googleusercontent.com)
-const GOOGLE_WEB_CLIENT_ID = "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com";
+const GOOGLE_WEB_CLIENT_ID = "943577031643-ek5lv99t03q3bjjildap5vna7p0mrt29.apps.googleusercontent.com";
 // ----------------------------------------------------------------
 
 let db = null;
