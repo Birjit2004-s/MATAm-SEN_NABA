@@ -855,8 +855,11 @@ function showSplashActions() {
 $('splashSignInBtn').addEventListener('click', () => {
   if (typeof window.AndroidAuth !== 'undefined') {
     window.AndroidAuth.signIn();
+  } else if (typeof firebase !== 'undefined' && db) {
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(() => {});
   } else {
-    alert('Google Sign-In only works in the Android app.');
+    hideSplash();
   }
 });
 
@@ -1054,8 +1057,9 @@ window._onGoogleSignOut = function() {
 $('signInBtn').addEventListener('click', () => {
   if (typeof window.AndroidAuth !== 'undefined') {
     window.AndroidAuth.signIn();
-  } else {
-    alert('Google Sign-In is only available in the Android app.\n\nFor setup instructions, see the FIREBASE SETUP section in app.js.');
+  } else if (typeof firebase !== 'undefined' && db) {
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(() => {});
   }
 });
 
