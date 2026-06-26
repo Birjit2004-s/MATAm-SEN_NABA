@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "215446047037",
+    "project_id": "matam-d6b2f",
+    "storage_bucket": "matam-d6b2f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:215446047037:android:33322404eada4827225d54",
+        "android_client_info": {
+          "package_name": "com.matam.sennaba"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "215446047037-jl01rc6m0o5ik61ml1q2ihhfttur04c0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.matam.sennaba",
+            "certificate_hash": "78e8f89de019a1c4819c7b325a5c4a0817827907"
+          }
+        },
+        {
+          "client_id": "215446047037-m1ubch9kae0oadgjg6ebgli0ehv3296e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBC8wz7gqJDbA-K1e8t0DMrNpBpACBNkvc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "215446047037-m1ubch9kae0oadgjg6ebgli0ehv3296e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
