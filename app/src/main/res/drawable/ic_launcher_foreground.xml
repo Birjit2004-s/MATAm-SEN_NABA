@@ -1,10 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MATAM logo foreground layer (adaptive icon safe zone: x 18-90, y 18-90)
+  Layout: white clock ring -> bold M stroked inside ring -> small clock at bottom
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:width="108dp"
+    android:height="108dp">
+
+    <!-- Clock ring: circle at center (54,48) radius 30 — fits safe zone y=18..78 -->
     <path
-        android:pathData="M34,57 L49,72 L75,42"
-        android:strokeColor="#FFFFFF"
+        android:pathData="M24,48 A30,30,0,1,1,84,48 A30,30,0,1,1,24,48 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3.5"/>
+
+    <!-- Bold M letter (stroked) inside the ring -->
+    <path
+        android:pathData="M24,70 L24,26 L54,50 L84,26 L84,70"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
         android:strokeWidth="9"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
+
+    <!-- Small clock body: circle at (54,82) radius 8 -->
+    <path
+        android:pathData="M46,82 A8,8,0,1,1,62,82 A8,8,0,1,1,46,82 Z"
+        android:fillColor="#33FFFFFF"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"/>
+
+    <!-- Hour hand: pointing up (12 o'clock) -->
+    <path
+        android:pathData="M54,82 L54,76"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"/>
+
+    <!-- Minute hand: 120° clockwise from up (4 o'clock) -->
+    <path
+        android:pathData="M54,82 L60,86"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"/>
+
+    <!-- Clock center pivot dot -->
+    <path
+        android:pathData="M52,82 A2,2,0,1,1,56,82 A2,2,0,1,1,52,82 Z"
+        android:fillColor="#FFFFFFFF"/>
+
 </vector>

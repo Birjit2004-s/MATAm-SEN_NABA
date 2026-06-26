@@ -923,14 +923,14 @@ setTimeout(() => { if (!_splashDone) showSplashActions(); }, 3000);
 //     Authentication → Sign-in method → Google → Web SDK configuration
 // ----------------------------------------------------------------
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyARhE0TrL27n6Q1d5UdkklLta_0eDjEOOc",
-  authDomain:        "com-matam-sennaba.firebaseapp.com",
-  projectId:         "com-matam-sennaba",
-  storageBucket:     "com-matam-sennaba.firebasestorage.app",
-  messagingSenderId: "943577031643",
-  appId:             "1:943577031643:web:540f0324190f24eff93dfe"
+  apiKey:            "AIzaSyBZCTZzIVy3ZrobhdINwgg3QXg5AAcyGmY",
+  authDomain:        "matam-d6b2f.firebaseapp.com",
+  projectId:         "matam-d6b2f",
+  storageBucket:     "matam-d6b2f.firebasestorage.app",
+  messagingSenderId: "215446047037",
+  appId:             "1:215446047037:web:4c299450cf1c8fd2225d54"
 };
-const GOOGLE_WEB_CLIENT_ID = "943577031643-ek5lv99t03q3bjjildap5vna7p0mrt29.apps.googleusercontent.com";
+const GOOGLE_WEB_CLIENT_ID = "215446047037-m1ubch9kae0oadgjg6ebgli0ehv3296e.apps.googleusercontent.com";
 // ----------------------------------------------------------------
 
 let db = null;
