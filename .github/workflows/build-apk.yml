@@ -49,14 +49,18 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           gradle assembleDebug --no-daemon
 
-      - name: Print SHA-1 fingerprint (add this to Firebase project settings)
+      - name: Print SHA-1 fingerprint (keystore + APK certificate)
         run: |
-          echo "=== Add this SHA-1 to Firebase Console -> Project Settings -> Your Apps ==="
+          echo "=== KEYSTORE SHA-1 (what you registered in Firebase) ==="
           $JAVA_HOME/bin/keytool -list -v \
             -keystore ~/.android/debug.keystore \
             -alias androiddebugkey \
             -storepass android -keypass android \
             | grep "SHA1:"
+          echo "=== APK CERTIFICATE SHA-1 (what is actually inside the APK) ==="
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs \
+            app/build/outputs/apk/debug/app-debug.apk \
+            | grep "SHA-1"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
