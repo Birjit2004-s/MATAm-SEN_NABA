@@ -176,6 +176,24 @@ input:focus-visible{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px v
 .notif-prompt-btn{flex:none;font-size:12px;padding:7px 13px}
 
 
+/* ---------- ACCOUNT BAR ---------- */
+.account-bar{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:13px 16px;margin-top:14px}
+.acct-out{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.acct-hint{font-size:13px;color:var(--muted)}
+.btn-google{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;background:#fff;border-color:var(--line);padding:9px 14px;flex:none}
+.btn-google:hover{background:#f8f8f8}
+.acct-in{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.acct-user{display:flex;align-items:center;gap:10px}
+.acct-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--bg)}
+.acct-name{font-weight:600;font-size:13px}
+.acct-email{font-size:12px;color:var(--muted)}
+.acct-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.sync-status{font-size:11px;font-weight:600;color:var(--teal)}
+.sync-status.syncing{color:var(--amber)}
+.sync-status.error{color:var(--danger)}
+.acct-signout{font-size:12px;padding:6px 11px;color:var(--danger);border-color:transparent;background:transparent}
+.acct-signout:hover{background:#faecec}
+
 /* ---------- FOOTER ---------- */
 footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px;line-height:1.7}
 

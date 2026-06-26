@@ -19,12 +19,23 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.tasks.Task;
+
 public class MainActivity extends Activity {
     private WebView web;
     private static final String CHANNEL_ID = "msn_reminders";
     private static final int REQ_LOCATION = 1;
-    private static final int REQ_NOTIF   = 2;
+    private static final int REQ_NOTIF    = 2;
+    private static final int RC_SIGN_IN   = 9001;
     private int notifId = 1000;
+
+    private String webClientId = null;
+    private GoogleSignInClient mGoogleSignInClient = null;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -42,6 +53,7 @@ public class MainActivity extends Activity {
         ws.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         web.addJavascriptInterface(new AndroidBridge(), "AndroidNotif");
+        web.addJavascriptInterface(new AndroidAuth(),   "AndroidAuth");
 
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient() {
@@ -64,6 +76,8 @@ public class MainActivity extends Activity {
         setContentView(web);
     }
 
+    // ===== NOTIFICATION CHANNEL =====
+
     private void createNotificationChannel() {
         NotificationChannel ch = new NotificationChannel(
                 CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_HIGH);
@@ -72,6 +86,8 @@ public class MainActivity extends Activity {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         nm.createNotificationChannel(ch);
     }
+
+    // ===== NOTIFICATION BRIDGE =====
 
     private class AndroidBridge {
 
@@ -115,6 +131,96 @@ public class MainActivity extends Activity {
             nm.notify(notifId++, notif);
         }
     }
+
+    // ===== GOOGLE SIGN-IN BRIDGE =====
+
+    private class AndroidAuth {
+
+        // JS calls this first with the web client ID from FIREBASE_CONFIG
+        @JavascriptInterface
+        public void setWebClientId(String clientId) {
+            webClientId = clientId;
+            runOnUiThread(() -> {
+                GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken(clientId)
+                        .requestEmail()
+                        .requestProfile()
+                        .build();
+                mGoogleSignInClient = GoogleSignIn.getClient(MainActivity.this, gso);
+
+                // Auto-sign-in if the user was already signed in before
+                trySilentSignIn();
+            });
+        }
+
+        @JavascriptInterface
+        public void signIn() {
+            if (mGoogleSignInClient == null) return;
+            runOnUiThread(() -> {
+                Intent intent = mGoogleSignInClient.getSignInIntent();
+                startActivityForResult(intent, RC_SIGN_IN);
+            });
+        }
+
+        @JavascriptInterface
+        public void signOut() {
+            if (mGoogleSignInClient == null) return;
+            mGoogleSignInClient.signOut().addOnCompleteListener(MainActivity.this, task ->
+                runJs("window._onGoogleSignOut && window._onGoogleSignOut()"));
+        }
+    }
+
+    // ===== SIGN-IN RESULT =====
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == RC_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                GoogleSignInAccount acct = task.getResult(ApiException.class);
+                notifySignedIn(acct);
+            } catch (ApiException e) {
+                runJs("window._onGoogleSignIn && window._onGoogleSignIn(null)");
+            }
+        }
+    }
+
+    private void trySilentSignIn() {
+        if (mGoogleSignInClient == null) return;
+        mGoogleSignInClient.silentSignIn().addOnCompleteListener(this, task -> {
+            if (task.isSuccessful()) {
+                // Delay slightly so WebView has time to finish loading JS
+                web.postDelayed(() -> notifySignedIn(task.getResult()), 1200);
+            }
+        });
+    }
+
+    private void notifySignedIn(GoogleSignInAccount acct) {
+        if (acct == null) return;
+        String idToken = acct.getIdToken() != null ? acct.getIdToken() : "";
+        String email   = esc(acct.getEmail());
+        String name    = esc(acct.getDisplayName());
+        String photo   = acct.getPhotoUrl() != null ? acct.getPhotoUrl().toString() : "";
+        String js = "window._onGoogleSignIn && window._onGoogleSignIn({"
+                + "idToken:'" + idToken + "',"
+                + "email:'"   + email   + "',"
+                + "name:'"    + name    + "',"
+                + "photo:'"   + photo   + "'"
+                + "})";
+        runJs(js);
+    }
+
+    private void runJs(String js) {
+        web.post(() -> web.evaluateJavascript(js, null));
+    }
+
+    private String esc(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    // ===== BACK BUTTON =====
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {

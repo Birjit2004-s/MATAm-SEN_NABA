@@ -28,7 +28,11 @@ const DEFAULT_HABITS = [
 ];
 let config = LS.get('msn_config', null);
 if (!config) { config = {habits: DEFAULT_HABITS.slice(), city: null}; LS.set('msn_config', config); }
-const saveConfig = () => LS.set('msn_config', config);
+
+// Replaced by real implementation after Firebase initializes
+let queueSync = () => {};
+
+const saveConfig = () => { LS.set('msn_config', config); queueSync(); };
 
 // ===== DAY DATA =====
 function loadDay(key) {
@@ -36,7 +40,7 @@ function loadDay(key) {
   return d ? {study: d.study || [], habits: d.habits || {}} : {study: [], habits: {}};
 }
 let day = loadDay(viewKey);
-const saveDay = () => LS.set('msn_day_' + viewKey, day);
+const saveDay = () => { LS.set('msn_day_' + viewKey, day); queueSync(); };
 
 // ===== DAY NAVIGATION =====
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -356,7 +360,7 @@ function addHabit() {
 
 // ===== REMINDERS =====
 let reminders = LS.get('msn_reminders', []);
-const saveRem = () => LS.set('msn_reminders', reminders);
+const saveRem = () => { LS.set('msn_reminders', reminders); queueSync(); };
 
 function fmtWhen(iso) {
   if (!iso) return '';
@@ -832,6 +836,234 @@ $('calNext').addEventListener('click', () => {
 });
 
 
+// ===== FIREBASE CLOUD BACKUP =====
+// ----------------------------------------------------------------
+// SETUP REQUIRED — Fill in your Firebase project details below.
+// Steps:
+//  1. Go to https://console.firebase.google.com
+//  2. Create a project (e.g. "matam-sen-naba")
+//  3. Add a Web app — copy the firebaseConfig object here
+//  4. In Authentication → Sign-in method → enable Google
+//  5. In Firestore Database → Create database (start in production mode)
+//  6. Get your Web Client ID from:
+//     Authentication → Sign-in method → Google → Web SDK configuration
+// ----------------------------------------------------------------
+const FIREBASE_CONFIG = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+// Paste your Web Client ID here (ends with .apps.googleusercontent.com)
+const GOOGLE_WEB_CLIENT_ID = "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com";
+// ----------------------------------------------------------------
+
+let db = null;
+let fbUser = null;
+
+function setSyncStatus(s) {
+  const el = $('syncStatus');
+  if (s === 'syncing') { el.textContent = '↑ Syncing…'; el.className = 'sync-status syncing'; }
+  else if (s === 'synced') { el.textContent = '✓ Synced'; el.className = 'sync-status'; }
+  else if (s === 'error')  { el.textContent = '✕ Sync failed'; el.className = 'sync-status error'; }
+}
+
+function showSignedIn(user) {
+  $('accountSignedOut').style.display = 'none';
+  $('accountSignedIn').style.display = '';
+  $('acctName').textContent  = user.displayName || 'User';
+  $('acctEmail').textContent = user.email || '';
+  if (user.photoURL) $('acctAvatar').src = user.photoURL;
+}
+
+function showSignedOut() {
+  $('accountSignedOut').style.display = '';
+  $('accountSignedIn').style.display = 'none';
+}
+
+// Sync only the day that just changed (fast — one document write)
+async function syncDayNow(key) {
+  if (!db || !fbUser) return;
+  const data = LS.get('msn_day_' + key, null);
+  if (!data) return;
+  try {
+    await db.collection('users').doc(fbUser.uid)
+            .collection('days').doc(key).set(data);
+  } catch(e) {}
+}
+
+// Sync config + reminders (one document write)
+async function syncMetaNow() {
+  if (!db || !fbUser) return;
+  try {
+    await db.collection('users').doc(fbUser.uid)
+            .collection('data').doc('meta').set({
+      config:    LS.get('msn_config', {}),
+      reminders: LS.get('msn_reminders', []),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch(e) {}
+}
+
+// Full sync: all days + meta (used right after sign-in)
+async function fullSyncToCloud() {
+  if (!db || !fbUser) return;
+  setSyncStatus('syncing');
+  try {
+    const uid = fbUser.uid;
+    const userRef = db.collection('users').doc(uid);
+
+    // Collect all day keys
+    const entries = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('msn_day_')) {
+        try { entries.push([k.replace('msn_day_', ''), JSON.parse(localStorage.getItem(k))]); } catch(e) {}
+      }
+    }
+
+    // Write meta
+    await userRef.collection('data').doc('meta').set({
+      config:    LS.get('msn_config', {}),
+      reminders: LS.get('msn_reminders', []),
+      email:     fbUser.email,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Write days in chunks of 400 (Firestore batch limit is 500)
+    for (let i = 0; i < entries.length; i += 400) {
+      const batch = db.batch();
+      entries.slice(i, i + 400).forEach(([dateKey, data]) => {
+        batch.set(userRef.collection('days').doc(dateKey), data);
+      });
+      await batch.commit();
+    }
+    setSyncStatus('synced');
+  } catch(e) {
+    setSyncStatus('error');
+  }
+}
+
+// Load everything from Firestore and refresh the app
+async function loadFromCloud() {
+  if (!db || !fbUser) return;
+  setSyncStatus('syncing');
+  try {
+    const uid = fbUser.uid;
+    const userRef = db.collection('users').doc(uid);
+
+    const metaSnap = await userRef.collection('data').doc('meta').get();
+    if (metaSnap.exists) {
+      const meta = metaSnap.data();
+      if (meta.config)    LS.set('msn_config', meta.config);
+      if (meta.reminders) LS.set('msn_reminders', meta.reminders);
+    }
+
+    const daysSnap = await userRef.collection('days').get();
+    daysSnap.forEach(doc => LS.set('msn_day_' + doc.id, doc.data()));
+
+    // Reload in-memory state
+    config = LS.get('msn_config', null);
+    if (!config) { config = {habits: DEFAULT_HABITS.slice(), city: null}; }
+    day = loadDay(viewKey);
+    reminders = LS.get('msn_reminders', []);
+
+    renderStudy();
+    renderHabits();
+    renderReminders();
+    renderDashboard();
+    renderCalendar();
+    if (notifGranted()) scheduleAllNotifs();
+
+    setSyncStatus('synced');
+
+    // Upload any local-only data that's newer than what was on the cloud
+    fullSyncToCloud();
+  } catch(e) {
+    setSyncStatus('error');
+  }
+}
+
+// Replace the no-op queueSync with a debounced real implementation
+(function installSync() {
+  let _dayTimer = null;
+  let _metaTimer = null;
+
+  queueSync = () => {
+    // saveDay just ran — debounce a day sync
+    clearTimeout(_dayTimer);
+    _dayTimer = setTimeout(() => syncDayNow(viewKey), 2000);
+
+    // Also debounce a meta sync in case config/reminders changed
+    clearTimeout(_metaTimer);
+    _metaTimer = setTimeout(syncMetaNow, 2500);
+  };
+})();
+
+// Called by Android after native Google Sign-In succeeds
+window._onGoogleSignIn = async function(data) {
+  if (!data || !data.idToken) return;
+  if (typeof firebase === 'undefined' || !db) return;
+  try {
+    const cred = firebase.auth.GoogleAuthProvider.credential(data.idToken);
+    await firebase.auth().signInWithCredential(cred);
+    // auth().onAuthStateChanged fires next and calls loadFromCloud()
+  } catch(e) {
+    console.error('signInWithCredential error:', e);
+  }
+};
+
+// Called by Android after sign-out
+window._onGoogleSignOut = function() {
+  if (typeof firebase !== 'undefined') firebase.auth().signOut();
+};
+
+// Sign-in / sign-out button handlers
+$('signInBtn').addEventListener('click', () => {
+  if (typeof window.AndroidAuth !== 'undefined') {
+    window.AndroidAuth.signIn();
+  } else {
+    alert('Google Sign-In is only available in the Android app.\n\nFor setup instructions, see the FIREBASE SETUP section in app.js.');
+  }
+});
+
+$('signOutBtn').addEventListener('click', () => {
+  if (typeof window.AndroidAuth !== 'undefined') window.AndroidAuth.signOut();
+  else if (typeof firebase !== 'undefined') firebase.auth().signOut();
+});
+
+// Initialize Firebase
+function initFirebase() {
+  if (typeof firebase === 'undefined') return;
+  if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') return; // not configured yet
+
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+
+    // Give Android the web client ID so it can start Google Sign-In
+    if (typeof window.AndroidAuth !== 'undefined' &&
+        GOOGLE_WEB_CLIENT_ID !== 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com') {
+      window.AndroidAuth.setWebClientId(GOOGLE_WEB_CLIENT_ID);
+    }
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        fbUser = user;
+        showSignedIn(user);
+        loadFromCloud();
+      } else {
+        fbUser = null;
+        showSignedOut();
+      }
+    });
+  } catch(e) {
+    console.error('Firebase init error:', e);
+  }
+}
+
 // ===== INIT =====
 updateDayNav();
 renderStudy();
@@ -843,3 +1075,4 @@ initCharts();
 renderDashboard();
 renderCalendar();
 autoDetectLocation();
+initFirebase();
