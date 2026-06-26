@@ -31,7 +31,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
-          key: debug-keystore-stable-v1
+          key: debug-keystore-stable-v2
 
       - name: Generate debug keystore (first run only)
         if: steps.keystore-cache.outputs.cache-hit != 'true'
